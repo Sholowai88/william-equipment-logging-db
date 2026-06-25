@@ -363,13 +363,31 @@
     // IMPORTANT: Replace these with your actual Supabase credentials
     const SUPABASE_URL = 'https://zxipsjhpdizckdxovjqq.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4aXBzamhwZGl6Y2tkeG92anFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNTkwNDgsImV4cCI6MjA5NzkzNTA0OH0.xWEYr3LSpmNEdLrqmWCMlwr2CkOCjm34RAHWR4R3eq8';
-
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // Initialize Supabase client - check if already exists
+    let supabase;
+    if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase initialized successfully');
+    } else {
+        console.error('Supabase library not loaded');
+        supabase = null;
+    }
+    
+    // Helper function to check Supabase availability
+    function isSupabaseAvailable() {
+        return supabase !== null && typeof supabase.from === 'function';
+    }
 
     // ==================== CLOUD SYNC FUNCTIONS ====================
     
     // Load data from Supabase
     async function loadFromSupabase() {
+        if (!isSupabaseAvailable()) {
+            toastMsg('Supabase not available. Using local data.');
+            return false;
+        }
+        
         try {
             toastMsg('Loading from cloud...');
             
@@ -442,9 +460,14 @@
             return false;
         }
     }
-
+    
     // Save equipment to Supabase
     async function saveEquipmentToSupabase(equipment) {
+        if (!isSupabaseAvailable()) {
+            console.warn('Supabase not available, skipping save');
+            return null;
+        }
+        
         try {
             // Check if equipment exists by serial and model
             const { data: existing, error: checkError } = await supabase
@@ -527,9 +550,14 @@
             throw error;
         }
     }
-
+    
     // Save audit log to Supabase
     async function saveAuditLogToSupabase(auditLog) {
+        if (!isSupabaseAvailable()) {
+            console.warn('Supabase not available, skipping audit save');
+            return;
+        }
+        
         try {
             const { error } = await supabase
                 .from('audit_logs')
@@ -546,9 +574,14 @@
             console.error('Error saving audit log:', error);
         }
     }
-
+    
     // Full sync: push local data to cloud
     async function syncToSupabase() {
+        if (!isSupabaseAvailable()) {
+            toastMsg('Supabase not available. Please check your connection.');
+            return false;
+        }
+        
         try {
             toastMsg('Syncing to cloud...');
             let syncCount = 0;
@@ -604,8 +637,10 @@
         if(auditLogs.length > 500) auditLogs.pop();
         saveAuditLogs();
         
-        // Save to cloud (async, don't block)
-        saveAuditLogToSupabase(logEntry).catch(err => console.warn('Audit log cloud save failed:', err));
+        // Save to cloud (async, only if available)
+        if (isSupabaseAvailable()) {
+            saveAuditLogToSupabase(logEntry).catch(err => console.warn('Audit log cloud save failed:', err));
+        }
     }
 
     function showAuditLogModal() {
